@@ -23,6 +23,8 @@ typedef enum : unsigned char {
    // argsetCall will not check if arguments are valid before
    // parsing them
    ARGSET_NO_CALL_CHECK = 4,
+   // name matching for args does not destingish between lower and upper case
+   ARGSET_NO_CASEMATCH = 8,
    // changes arg from "help" to "--help"
    ARGSET_DOUBLE_DASH_HELP = 128,
 } ArgsetFlags;
@@ -43,6 +45,8 @@ typedef enum : char {
    ARGSET_OFM,
    // last operation was provided bad string
    ARGSET_BAD_STR,
+   // bad arguments where provided
+   ARGSET_BAD_ARGS,
 } ArgsetErrors;
 
 /**
@@ -56,7 +60,7 @@ typedef enum : char {
 typedef enum : char {
    ARGSET_FUNC_CALL,
    ARGSET_ARG_LIST,
-   ARGSET_VARABLE
+   ARGSET_VARABLE,
 } ArgsetType;
 
 /**
@@ -67,18 +71,18 @@ typedef enum : char {
  * appedn argsetAppendVar
  *
  */
-typedef enum {
-	//char
+typedef enum : char {
+   // char
    TYPE_ARGSET_CHAR,
-	//int
+   // int
    TYPE_ARGSET_INT,
-	//long
+   // long
    TYPE_ARGSET_LONG,
-	//float
+   // float
    TYPE_ARGSET_FLOAT,
-	//double
+   // double
    TYPE_ARGSET_DOUBLE,
-	//const char*
+   // const char*
    TYPE_ARGSET_STR,
 } ArgsetDataType;
 
@@ -105,17 +109,21 @@ typedef struct __ArgsetNode__ {
 typedef struct {
    const char *name;
    union {
+      // function call type
       struct {
          void (*ptr)(void *);
          void *arg;
       } fCall;
+      // iterator type
       struct {
          void (*ptr)(const char *, void *);
          void *arg;
+         int minArgs;
       } lCall;
+      // varable type
       struct {
          void *arg;
-			ArgsetDataType type;
+         ArgsetDataType type;
       } vCall;
    };
    ArgsetType type;
@@ -207,7 +215,8 @@ int argsetAppendFunc(Argset *argset, const char *name, const char *desc,
  * other defined argument
  */
 int argsetAppendIter(Argset *argset, const char *name, const char *desc,
-                     void (*func)(const char *, void *), void *arg);
+                     void (*func)(const char *, void *), void *arg,
+                     int minArgs);
 
 /**
  * Function: agrsetAppendVar
