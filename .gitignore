@@ -1,0 +1,5 @@
+main.c
+Makefile
+*.log
+*.out
+.clang-format
