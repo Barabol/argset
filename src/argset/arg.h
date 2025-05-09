@@ -20,6 +20,9 @@ typedef enum : char {
    ARGSET_NO_HELP = 1,
    // there will be no logs in terminal caused by Argset
    ARGSET_NO_TERM_LOGGING = 2,
+	// argsetCall will not check if arguments are valid before 
+	// parsing them
+	ARGSET_NO_CALL_CHECK = 4,
 } ArgsetFlags;
 
 /**
@@ -48,7 +51,11 @@ typedef enum : char {
  *
  * by argset when argument is called
  */
-typedef enum : char { ARGSET_FUNC_CALL, ARGSET_ARG_LIST } ArgsetType;
+typedef enum : char {
+   ARGSET_FUNC_CALL,
+   ARGSET_ARG_LIST,
+   ARGSET_VARABLE
+} ArgsetType;
 
 /**
  * Struct: ArgsetListNode
@@ -71,12 +78,16 @@ typedef struct __ArgsetNode__ {
  * when program is called with it's arg
  */
 typedef struct {
-	const char *name;
+   const char *name;
    union {
       struct {
          void (*ptr)(void *);
          void *arg;
       } fCall;
+      struct {
+         void (*ptr)(const char *, void *);
+         void *arg;
+      } lCall;
    };
    ArgsetType type;
 } ArgsetOper;
@@ -134,7 +145,7 @@ typedef struct {
 Argset *argsetInit(int argc, char **argv, char flags);
 
 /**
- * Function: agrsetAppend
+ * Function: agrsetAppendFunc
  *	\--------------------
  *
  * adds argument that can be passed to program
@@ -144,9 +155,30 @@ Argset *argsetInit(int argc, char **argv, char flags);
  *	returns 0 if successfull
  *
  * description can be NULL if there is none
+ *
+ * if arg is used function pointer is called
  */
 int argsetAppendFunc(Argset *argset, const char *name, const char *desc,
                      void (*func)(void *), void *arg);
+
+/**
+ * Function: agrsetAppendIter
+ *	\--------------------
+ *
+ * adds argument that can be passed to program
+ *
+ * if arg is used function provided will be called
+ *
+ *	returns 0 if successfull
+ *
+ * description can be NULL if there is none
+ *
+ * if arg is used function pointer is called for evry argument that is not 
+ *
+ * other defined argument
+ */
+int argsetAppendIter(Argset *argset, const char *name, const char *desc,
+                     void (*func)(const char *, void *), void *arg);
 
 /**
  * Function: agrsetCall

@@ -9,12 +9,12 @@ void helpCommand(void *vNode) {
    Argset *arg = (Argset *)vNode;
    ArgsetListNode *node = arg->list.tail;
 
-   printf("\n\033[1m%-22s  %-22s\033[0m\n\n", "command", "description");
+   printf("\n   \033[1m%-22s %-22s\033[0m\n\n", "command", "description");
    while (node != NULL) {
-      printf("%-22s  %-22s\n", node->name, node->desc);
+      printf("   %-22s %-22s\n", node->name, node->desc);
       node = node->next;
    }
-	puts("");
+   puts("");
 }
 
 int trieInsert(TrieNode *node, const char *key, ArgsetOper *value) {
@@ -100,7 +100,9 @@ Argset *argsetInit(int argc, char **argv, char flags) {
    argset->list.tail = NULL;
    argset->lastError = ARGSET_NONE;
 
-   argsetAppendFunc(argset, "help", "displays all ", helpCommand, argset);
+   if (~flags & ARGSET_NO_HELP)
+      argsetAppendFunc(argset, "help", "displays all commands", helpCommand,
+                       argset);
 
    return argset;
 }
@@ -161,16 +163,77 @@ int argsetAppendFunc(Argset *argset, const char *name, const char *desc,
    return 0;
 }
 
+int argsetAppendIter(Argset *argset, const char *name, const char *desc,
+                     void (*func)(const char *, void *), void *arg) {
+   if (argset == NULL)
+      return 1;
+   if (name == NULL) {
+      argset->lastError = ARGSET_BAD_STR;
+      if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+         puts("bad name was provided");
+      return 1;
+   }
+   ArgsetOper *oper = NULL;
+   oper = (ArgsetOper *)malloc(sizeof(ArgsetOper));
+   if (oper == NULL) {
+      argset->lastError = ARGSET_OFM;
+      if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+         puts("unable to allocate memory");
+      return 1;
+   }
+
+   trieInsert(argset->tree, name, oper);
+   if (~argset->flags & ARGSET_NO_HELP)
+      listAdd(argset, name, desc);
+
+   oper->name = name;
+   oper->type = ARGSET_ARG_LIST;
+   oper->lCall.ptr = func;
+   oper->lCall.arg = arg;
+   return 0;
+}
+
 void argsetCall(Argset *argset) {
    if (argset == NULL)
       return;
 
-   ArgsetOper *oper;
+   ArgsetOper *oper = NULL;
+   ArgsetOper *last = NULL;
+   if (~argset->flags & ARGSET_NO_CALL_CHECK)
+      for (int x = 1; x < argset->argc; x++) {
+         oper = trieValue(argset->tree, argset->argv[x]);
+         if (oper != NULL) {
+            if (oper->type == ARGSET_ARG_LIST) {
+               last = oper;
+               continue;
+            }
+            last = NULL;
+            if (oper->type == ARGSET_FUNC_CALL)
+               continue;
+         } else if (last != NULL) {
+            continue;
+         } else {
+            if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+               puts("invalid arg");
+            return;
+         }
+      }
    for (int x = 1; x < argset->argc; x++) {
       oper = trieValue(argset->tree, argset->argv[x]);
       if (oper != NULL) {
+         if (oper->type == ARGSET_ARG_LIST) {
+            last = oper;
+            continue;
+         }
+         last = NULL;
          if (oper->type == ARGSET_FUNC_CALL)
             oper->fCall.ptr(oper->fCall.arg);
+      } else if (last != NULL) {
+         last->lCall.ptr(argset->argv[x], last->lCall.arg);
+      } else {
+         if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+            puts("invalid arg");
+         break;
       }
    }
 }
