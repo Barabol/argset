@@ -101,8 +101,9 @@ Argset *argsetInit(int argc, char **argv, char flags) {
    argset->lastError = ARGSET_NONE;
 
    if (~flags & ARGSET_NO_HELP)
-      argsetAppendFunc(argset, "help", "displays all commands", helpCommand,
-                       argset);
+      argsetAppendFunc(argset,
+                       flags & ARGSET_DOUBLE_DASH_HELP ? "--help" : "help",
+                       "displays all commands", helpCommand, argset);
 
    return argset;
 }
@@ -163,6 +164,68 @@ int argsetAppendFunc(Argset *argset, const char *name, const char *desc,
    return 0;
 }
 
+void varCall(ArgsetDataType type, void *var, const char *txt) {
+   printf("str: \"%s\"\n", txt);
+   switch (type) {
+   case TYPE_ARGSET_CHAR: {
+      char *v = (char *)var;
+      *v = atoi(txt) & 0xFF;
+      if (txt[0] != 0 && txt[1] == 0)
+         *v = txt[0];
+   } break;
+   case TYPE_ARGSET_INT: {
+      int *v = (int *)var;
+      *v = atoi(txt);
+   } break;
+   case TYPE_ARGSET_LONG: {
+      long *v = (long *)var;
+      *v = atol(txt);
+   } break;
+   case TYPE_ARGSET_FLOAT: {
+      float *v = (float *)var;
+      *v = atof(txt);
+   } break;
+   case TYPE_ARGSET_DOUBLE: {
+      double *v = (double *)var;
+      *v = atof(txt);
+   } break;
+   case TYPE_ARGSET_STR: {
+      const char *v = (const char *)var;
+      v = txt;
+   } break;
+   }
+}
+
+int argsetAppendVar(Argset *argset, const char *name, const char *desc,
+                    ArgsetDataType type, void *arg) {
+   if (argset == NULL)
+      return 1;
+   if (name == NULL) {
+      argset->lastError = ARGSET_BAD_STR;
+      if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+         puts("bad name was provided");
+      return 1;
+   }
+   ArgsetOper *oper = NULL;
+   oper = (ArgsetOper *)malloc(sizeof(ArgsetOper));
+   if (oper == NULL) {
+      argset->lastError = ARGSET_OFM;
+      if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+         puts("unable to allocate memory");
+      return 1;
+   }
+
+   trieInsert(argset->tree, name, oper);
+   if (~argset->flags & ARGSET_NO_HELP)
+      listAdd(argset, name, desc);
+
+   oper->name = name;
+   oper->type = ARGSET_VARABLE;
+   oper->vCall.arg = arg;
+   oper->vCall.type = type;
+   return 0;
+}
+
 int argsetAppendIter(Argset *argset, const char *name, const char *desc,
                      void (*func)(const char *, void *), void *arg) {
    if (argset == NULL)
@@ -210,6 +273,15 @@ void argsetCall(Argset *argset) {
             last = NULL;
             if (oper->type == ARGSET_FUNC_CALL)
                continue;
+            else if (oper->type == ARGSET_VARABLE) {
+               x++;
+               if (x >= argset->argc) {
+                  if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+                     puts("invalid arg");
+                  return;
+               }
+               continue;
+            }
          } else if (last != NULL) {
             continue;
          } else {
@@ -228,6 +300,16 @@ void argsetCall(Argset *argset) {
          last = NULL;
          if (oper->type == ARGSET_FUNC_CALL)
             oper->fCall.ptr(oper->fCall.arg);
+         if (oper->type == ARGSET_VARABLE) {
+            x++;
+            if (x >= argset->argc) {
+               if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+                  puts("invalid arg");
+               return;
+            }
+            varCall(oper->vCall.type, oper->vCall.arg, argset->argv[x]);
+            continue;
+         }
       } else if (last != NULL) {
          last->lCall.ptr(argset->argv[x], last->lCall.arg);
       } else {

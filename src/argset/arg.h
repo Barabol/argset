@@ -15,14 +15,16 @@
  * with '|' operator
  *
  */
-typedef enum : char {
+typedef enum : unsigned char {
    // help command will not be generated
    ARGSET_NO_HELP = 1,
    // there will be no logs in terminal caused by Argset
    ARGSET_NO_TERM_LOGGING = 2,
-	// argsetCall will not check if arguments are valid before 
-	// parsing them
-	ARGSET_NO_CALL_CHECK = 4,
+   // argsetCall will not check if arguments are valid before
+   // parsing them
+   ARGSET_NO_CALL_CHECK = 4,
+   // changes arg from "help" to "--help"
+   ARGSET_DOUBLE_DASH_HELP = 128,
 } ArgsetFlags;
 
 /**
@@ -58,6 +60,29 @@ typedef enum : char {
 } ArgsetType;
 
 /**
+ * Enum: ArgsetDataType
+ * \--------------------
+ *
+ * Data types supported by
+ * appedn argsetAppendVar
+ *
+ */
+typedef enum {
+	//char
+   TYPE_ARGSET_CHAR,
+	//int
+   TYPE_ARGSET_INT,
+	//long
+   TYPE_ARGSET_LONG,
+	//float
+   TYPE_ARGSET_FLOAT,
+	//double
+   TYPE_ARGSET_DOUBLE,
+	//const char*
+   TYPE_ARGSET_STR,
+} ArgsetDataType;
+
+/**
  * Struct: ArgsetListNode
  * \----------------------
  *
@@ -88,6 +113,10 @@ typedef struct {
          void (*ptr)(const char *, void *);
          void *arg;
       } lCall;
+      struct {
+         void *arg;
+			ArgsetDataType type;
+      } vCall;
    };
    ArgsetType type;
 } ArgsetOper;
@@ -173,12 +202,30 @@ int argsetAppendFunc(Argset *argset, const char *name, const char *desc,
  *
  * description can be NULL if there is none
  *
- * if arg is used function pointer is called for evry argument that is not 
+ * if arg is used function pointer is called for evry argument that is not
  *
  * other defined argument
  */
 int argsetAppendIter(Argset *argset, const char *name, const char *desc,
                      void (*func)(const char *, void *), void *arg);
+
+/**
+ * Function: agrsetAppendVar
+ *	\--------------------
+ *
+ * adds argument that can be passed to program
+ *
+ * if arg is used function provided will be called
+ *
+ *	returns 0 if successfull
+ *
+ * description can be NULL if there is none
+ *
+ * if arg is used next arg will be used
+ * as value for provided varable
+ */
+int argsetAppendVar(Argset *argset, const char *name, const char *desc,
+                    ArgsetDataType type, void *arg);
 
 /**
  * Function: agrsetCall
