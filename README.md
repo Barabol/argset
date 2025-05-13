@@ -1,5 +1,5 @@
 # Argset
-easy to use lightweight C library for adding usable start arguments
+easy to use lightweight C library for adding start arguments
 
 ## usage
 
@@ -115,7 +115,7 @@ int main(int argc,char** argv){
 
 ## Example
 
-### simple calculator operating by passed arguments
+### simple calculator operated by passed arguments
 
 ```c
 #include "src/argset/arg.h"
