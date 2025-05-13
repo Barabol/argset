@@ -66,11 +66,11 @@ int main(int argc,char** argv){
         // valid:
         // ./program --iter a
         // ./program --iter --help
-        // ./porgram --iter --help a
+        // ./porgram --iter a --help
         //
         // invalid:
         // ./program --iter
-        // ./porgram --iter a --help
+        // ./porgram --iter --help a
         //
         // other commands does not trigger Iter arguments
 
