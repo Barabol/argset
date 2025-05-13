@@ -17,15 +17,16 @@ void helpCommand(void *vNode) {
    puts("");
 }
 
-int trieInsert(TrieNode *node, const char *key, ArgsetOper *value,
-               char useLower) {
+int AStrieInsert(ArgsetTrieNode *node, const char *key, ArgsetOper *value,
+                 char useLower) {
    if (node == NULL)
       return -1;
    char used;
    for (; *key; key++) {
       used = (useLower && *key >= 'A' && *key <= 'Z') ? *key + 32 : *key;
       if (node->children[used] == NULL) {
-         node->children[used] = (TrieNode *)malloc(sizeof(TrieNode));
+         node->children[used] =
+             (ArgsetTrieNode *)malloc(sizeof(ArgsetTrieNode));
 
          if (node->children[used] == NULL)
             return 1;
@@ -40,7 +41,7 @@ int trieInsert(TrieNode *node, const char *key, ArgsetOper *value,
    return 0;
 }
 
-ArgsetOper *trieValue(TrieNode *node, const char *key, char useLower) {
+ArgsetOper *AStrieValue(ArgsetTrieNode *node, const char *key, char useLower) {
    if (node == NULL)
       return NULL;
    for (; *key; key++) {
@@ -52,12 +53,16 @@ ArgsetOper *trieValue(TrieNode *node, const char *key, char useLower) {
    return node->value;
 }
 
-void trieFree(TrieNode *node) {
+void trieFree(ArgsetTrieNode *node) {
    if (node == NULL)
       return;
 
-   if (node->value != NULL)
-      free(node->value);
+   if (node->value != NULL) {
+      if (node->value->isAlias != 0)
+         node->value->isAlias--;
+      else
+         free(node->value);
+   }
 
    for (int x = 0; x < __TRIE_NODES__; x++) {
       if (node->children[x] == NULL)
@@ -81,8 +86,8 @@ Argset *argsetInit(int argc, char **argv, char flags) {
       return NULL;
    }
 
-   TrieNode *tree = NULL;
-   tree = (TrieNode *)malloc(sizeof(TrieNode));
+   ArgsetTrieNode *tree = NULL;
+   tree = (ArgsetTrieNode *)malloc(sizeof(ArgsetTrieNode));
 
    tree->value = NULL;
    for (int x = 0; x < __TRIE_NODES__; x++)
@@ -157,8 +162,8 @@ int argsetAppendFunc(Argset *argset, const char *name, const char *desc,
       return 1;
    }
 
-   trieInsert(argset->tree, name, oper,
-              argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+   AStrieInsert(argset->tree, name, oper,
+                argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
    if (~argset->flags & ARGSET_NO_HELP)
       listAdd(argset, name, desc);
 
@@ -166,6 +171,7 @@ int argsetAppendFunc(Argset *argset, const char *name, const char *desc,
    oper->type = ARGSET_FUNC_CALL;
    oper->fCall.ptr = func;
    oper->fCall.arg = arg;
+   oper->isAlias = 0;
    return 0;
 }
 
@@ -201,6 +207,68 @@ void varCall(ArgsetDataType type, void *var, const char *txt) {
    }
 }
 
+int argsetGetBool(Argset *argset, const char *name) {
+   if (argset == NULL || name == NULL)
+      return 1;
+
+   ArgsetOper *oper = AStrieValue(argset->tree, name,
+                                  argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+
+   if (oper == NULL)
+      return -1;
+
+   if (oper->type == ARGSET_BOOL)
+      return oper->bCall.calls;
+
+   return -1;
+}
+
+int argsetAppendAlias(Argset *argset, const char *name, const char *alias) {
+   if (argset == NULL || name == NULL || alias == NULL)
+      return 1;
+
+   ArgsetOper *oper = AStrieValue(argset->tree, name,
+                                  argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+
+   oper->isAlias++;
+   if (oper == NULL)
+      return -1;
+
+   AStrieInsert(argset->tree, alias, oper,
+                argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+   return 0;
+}
+
+int argsetAppendBool(Argset *argset, const char *name, const char *desc) {
+   if (argset == NULL)
+      return 1;
+   if (name == NULL) {
+      argset->lastError = ARGSET_BAD_STR;
+      if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+         puts("bad name was provided");
+      return 1;
+   }
+   ArgsetOper *oper = NULL;
+   oper = (ArgsetOper *)malloc(sizeof(ArgsetOper));
+   if (oper == NULL) {
+      argset->lastError = ARGSET_OFM;
+      if (~argset->flags & ARGSET_NO_TERM_LOGGING)
+         puts("unable to allocate memory");
+      return 1;
+   }
+
+   AStrieInsert(argset->tree, name, oper,
+                argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+   if (~argset->flags & ARGSET_NO_HELP)
+      listAdd(argset, name, desc);
+
+   oper->name = name;
+   oper->isAlias = 0;
+   oper->type = ARGSET_BOOL;
+   oper->bCall.calls = 0;
+   return 0;
+}
+
 int argsetAppendVar(Argset *argset, const char *name, const char *desc,
                     ArgsetDataType type, void *arg) {
    if (argset == NULL)
@@ -220,8 +288,8 @@ int argsetAppendVar(Argset *argset, const char *name, const char *desc,
       return 1;
    }
 
-   trieInsert(argset->tree, name, oper,
-              argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+   AStrieInsert(argset->tree, name, oper,
+                argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
    if (~argset->flags & ARGSET_NO_HELP)
       listAdd(argset, name, desc);
 
@@ -229,6 +297,7 @@ int argsetAppendVar(Argset *argset, const char *name, const char *desc,
    oper->type = ARGSET_VARABLE;
    oper->vCall.arg = arg;
    oper->vCall.type = type;
+   oper->isAlias = 0;
    return 0;
 }
 
@@ -237,12 +306,6 @@ int argsetAppendIter(Argset *argset, const char *name, const char *desc,
                      int minArgs) {
    if (argset == NULL)
       return 1;
-   if (name == NULL) {
-      argset->lastError = ARGSET_BAD_STR;
-      if (~argset->flags & ARGSET_NO_TERM_LOGGING)
-         puts("bad name was provided");
-      return 1;
-   }
    ArgsetOper *oper = NULL;
    oper = (ArgsetOper *)malloc(sizeof(ArgsetOper));
    if (oper == NULL) {
@@ -252,9 +315,13 @@ int argsetAppendIter(Argset *argset, const char *name, const char *desc,
       return 1;
    }
 
-   trieInsert(argset->tree, name, oper,
-              argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
-   if (~argset->flags & ARGSET_NO_HELP)
+   if (name == NULL)
+      argset->tree->value = oper;
+   else
+      AStrieInsert(argset->tree, name, oper,
+                   argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+
+   if (name != NULL && ~argset->flags & ARGSET_NO_HELP)
       listAdd(argset, name, desc);
 
    oper->name = name;
@@ -262,6 +329,7 @@ int argsetAppendIter(Argset *argset, const char *name, const char *desc,
    oper->lCall.ptr = func;
    oper->lCall.arg = arg;
    oper->lCall.minArgs = minArgs;
+   oper->isAlias = 0;
    return 0;
 }
 
@@ -275,8 +343,8 @@ void argsetCall(Argset *argset) {
 
    if (~argset->flags & ARGSET_NO_CALL_CHECK)
       for (int x = 1; x < argset->argc; x++) {
-         oper = trieValue(argset->tree, argset->argv[x],
-                          argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+         oper = AStrieValue(argset->tree, argset->argv[x],
+                            argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
          if (oper != NULL) {
             if (reqArgs != 0) {
                if (~argset->flags & ARGSET_NO_TERM_LOGGING)
@@ -288,7 +356,8 @@ void argsetCall(Argset *argset) {
                reqArgs = oper->lCall.minArgs;
                last = oper;
                continue;
-            }
+            } else if (oper->type == ARGSET_BOOL)
+               continue;
             last = NULL;
             if (oper->type == ARGSET_FUNC_CALL)
                continue;
@@ -307,6 +376,9 @@ void argsetCall(Argset *argset) {
                reqArgs--;
             continue;
          } else {
+            if (argset->tree->value != NULL) {
+               continue;
+            }
             if (~argset->flags & ARGSET_NO_TERM_LOGGING)
                puts("invalid arg");
             argset->lastError = ARGSET_BAD_ARGS;
@@ -314,8 +386,8 @@ void argsetCall(Argset *argset) {
          }
       }
    for (int x = 1; x < argset->argc; x++) {
-      oper = trieValue(argset->tree, argset->argv[x],
-                       argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
+      oper = AStrieValue(argset->tree, argset->argv[x],
+                         argset->flags & ARGSET_NO_CASEMATCH ? 1 : 0);
       if (oper != NULL) {
          if (reqArgs != 0) {
             if (~argset->flags & ARGSET_NO_TERM_LOGGING)
@@ -325,6 +397,9 @@ void argsetCall(Argset *argset) {
          }
          if (oper->type == ARGSET_ARG_LIST) {
             last = oper;
+            continue;
+         } else if (oper->type == ARGSET_BOOL) {
+            oper->bCall.calls++;
             continue;
          }
          last = NULL;
@@ -346,6 +421,11 @@ void argsetCall(Argset *argset) {
             reqArgs--;
          last->lCall.ptr(argset->argv[x], last->lCall.arg);
       } else {
+         if (argset->tree->value != NULL) {
+            oper = argset->tree->value;
+            oper->lCall.ptr(argset->argv[x], oper->lCall.arg);
+            continue;
+         }
          if (~argset->flags & ARGSET_NO_TERM_LOGGING)
             puts("invalid arg");
          argset->lastError = ARGSET_BAD_ARGS;

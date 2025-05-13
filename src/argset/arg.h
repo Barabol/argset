@@ -61,6 +61,7 @@ typedef enum : char {
    ARGSET_FUNC_CALL,
    ARGSET_ARG_LIST,
    ARGSET_VARABLE,
+   ARGSET_BOOL,
 } ArgsetType;
 
 /**
@@ -125,21 +126,26 @@ typedef struct {
          void *arg;
          ArgsetDataType type;
       } vCall;
+      // bool type
+      struct {
+         int calls;
+      } bCall;
    };
+	unsigned char isAlias;
    ArgsetType type;
 } ArgsetOper;
 
 /**
- * Structure: TrieNode
+ * Structure: ArgsetTrieNode
  * \-------------------
  *
  * base structure for trie tree
  *
  */
-typedef struct __TrieNode__ {
-   struct __TrieNode__ *children[__TRIE_NODES__];
+typedef struct __ArgsetTrieNode__ {
+   struct __ArgsetTrieNode__ *children[__TRIE_NODES__];
    ArgsetOper *value;
-} TrieNode;
+} ArgsetTrieNode;
 
 /**
  * Struct: Argset
@@ -156,7 +162,7 @@ typedef struct __TrieNode__ {
 typedef struct {
    int argc;
    char **argv;
-   TrieNode *tree;
+   ArgsetTrieNode *tree;
    char flags;
    ArgsetErrors lastError;
 
@@ -182,8 +188,29 @@ typedef struct {
 Argset *argsetInit(int argc, char **argv, char flags);
 
 /**
+ * Function: agrsetAppendBool
+ *	\--------------------------
+ *
+ * adds arg that can be checked if it was called
+ *
+ * with argsetGetBool
+ *
+ */
+int argsetAppendBool(Argset *argset, const char *name, const char *desc);
+
+/**
+ * Function: agrsetAppendAlias
+ *	\---------------------------
+ *
+ * adds alias to existing arg
+ *
+ * max 255 aliases for evry arg
+ */
+int argsetAppendAlias(Argset *argset, const char *name, const char *alias);
+
+/**
  * Function: agrsetAppendFunc
- *	\--------------------
+ *	\--------------------------
  *
  * adds argument that can be passed to program
  *
@@ -213,6 +240,9 @@ int argsetAppendFunc(Argset *argset, const char *name, const char *desc,
  * if arg is used function pointer is called for evry argument that is not
  *
  * other defined argument
+ *
+ * if name is set to NULL this function will be called when no callable argument
+ *has been provided
  */
 int argsetAppendIter(Argset *argset, const char *name, const char *desc,
                      void (*func)(const char *, void *), void *arg,
@@ -246,6 +276,17 @@ int argsetAppendVar(Argset *argset, const char *name, const char *desc,
  *
  */
 void argsetCall(Argset *argset);
+
+/**
+ * Function: agrsetGetBool
+ *	\-----------------------
+ *
+ * checks if argset bool type was called
+ *
+ * returns how many times it was called
+ *
+ */
+int argsetGetBool(Argset *argset, const char *name);
 
 /**
  * Function: agrsetFree
